@@ -1,3 +1,32 @@
+# My Contributions
+
+Fork of: https://github.com/embassy-rs/embassy — async embedded framework for Rust.
+
+## I2C: Fix Slave Mode Hang in Blocking Mode (embassy-rs#6751)
+
+The library uses a chip as an I2C slave in two modes - interrupt driven and another mode that just polls a status flag instead of using interrupts. In the original code, the I2C interrupts for both 
+modes, even though blocking mode never installs a handler for them. Because the address match flag isn't clered automatically, a message on the bus would trigger the unhandled interrupts and due to this the I2C slave mode would hang and never recover.
+
+#My Fix
+To fix this, I moved the interrupt setup so it only runs for the constructors that actually bind a handler, leaving the blocking mode untouched. I also noticed that there were two functions which could update the same interrupt enable bit at the same time without any synchronization which I fixed.
+
+#Challenges I faced
+The blocking mode code path looked correct when you saw it independently. But, it was actually living one layer up. In setup logic shared both modes, so I had to trace the failure back through the constructors rather than the code which actually hung. 
+
+----------------------------------------------------------------------
+## Flash: Fix Bounds Check for Chips With Non-Contiguous Banks (embassy-rs#6700, closes #6258)
+
+Flash on STM32 chips are split into two banks and this library's read/write bounds check assumed that they area always back to back in address space. On the STM32G473CB, it doesn't sit back to back. There is a gap between the banks so valid addresses in the second bank were being rejected as out of range, even though the lower level erase function could reach them without issue.
+
+#To fix this:
+I changed the bounds check to validate against the chip's actual addressable memory span instead of assuming a contiguous layout.
+
+#Challenges I faced:
+The person who reported it assumed the erase function itself was broken and had already worked around it with a manual register level implementation. The real bug was actually in the address validation.
+
+ I had to work through the chip's memory map to test that and prove it and to also let the managers know that the erase path didn't need any fix.
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 # Embassy
 
 Embassy is the next-generation framework for embedded applications. Write safe, correct, and energy-efficient embedded code faster, using the Rust programming language, its async facilities, and the Embassy libraries.
